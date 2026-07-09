@@ -1,61 +1,83 @@
-//
-//  ContentView.swift
-//  to do
-//
-//  Created by Ingrid Zippe on 6/24/26.
-//
-
 import SwiftUI
 import SwiftData
 
 struct ContentView: View {
+    // 1. Get access to the database context for writing data
     @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
-
+    
+    // 2. Automatically fetch and sort items from the database
+    @Query(sort: \TodoItem.createdAt, order: .reverse) private var items: [TodoItem]
+        
+    @State private var newTitle = ""
+    
     var body: some View {
-        NavigationSplitView {
+        NavigationStack {
             List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+                // Add New Item Section
+                Section(header: Text("to do")
+                    .bold()
+                    .font(.system(size: 24))
+                    .padding(.top, 10)
+                    .padding(.bottom, -32)) {
+                    
+                }
+                HStack {
+                    TextField("to do item...", text: $newTitle)
+                        .textInputAutocapitalization(.never)
+                    Button("add") {
+                        addItem()
                     }
+                    .disabled(newTitle.isEmpty)
                 }
-                .onDelete(perform: deleteItems)
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
+                Section(header: Text("to do")) {
+                    ForEach(items.filter { !$0.isCompleted}) { item in
+                        HStack {
+                            Button("") {
+                                item.isCompleted.toggle()
+                            }
+                            Image(systemName: "circle.fill")
+                                .foregroundColor(.white)
+                                .strikethrough(item.isCompleted)
+                                .foregroundColor(item.isCompleted ? .green : .primary)
+                                .overlay(
+                                    Circle()
+                                        .stroke(.gray, lineWidth: 1) // Border color and thickness
+                                )
+                            Text(item.title)
+                        }
                     }
+                    .onDelete(perform: deleteItems) // Swipe-to-delete
+                }
+                Section(header: Text("completed")) {
+                    ForEach(items.filter { $0.isCompleted}) { item in
+                        HStack{
+                            Button("") {
+                                item.isCompleted.toggle()
+                            }
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.gray)
+                                .strikethrough(item.isCompleted)
+                                .foregroundColor(item.isCompleted ? .gray : .primary)
+                            Text(item.title)
+                        }
+                    }
+                    .onDelete(perform: deleteItems) // Swipe-to-delete
                 }
             }
-        } detail: {
-            Text("Select an item")
         }
+        .navigationTitle("To Do")
     }
-
+    // 3. Insert data into the database
     private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
+        let newItem = TodoItem(title: newTitle)
+        modelContext.insert(newItem) // Saved to disk automatically
+        newTitle = "" // Clear text field
+    }
+    // 4. Delete data from the database
+    private func deleteItems(at offsets: IndexSet) {
+        for index in offsets {
+            let itemToDelete = items[index]
+            modelContext.delete(itemToDelete) // Removed from disk
         }
     }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
-            }
-        }
-    }
-}
-
-#Preview {
-    ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
 }
